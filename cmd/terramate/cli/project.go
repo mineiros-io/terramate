@@ -20,6 +20,7 @@ import (
 	"github.com/mineiros-io/terramate/errors"
 	"github.com/mineiros-io/terramate/git"
 	"github.com/mineiros-io/terramate/hcl"
+	"github.com/mineiros-io/terramate/stack"
 	"github.com/rs/zerolog/log"
 )
 
@@ -29,8 +30,10 @@ type project struct {
 	isRepo  bool
 	rootcfg hcl.Config
 	baseRef string
+	loader  *stack.Loader
 
 	git struct {
+		git                         *git.Git
 		headCommitID                string
 		localDefaultBranchCommitID  string
 		remoteDefaultBranchCommitID string
@@ -146,6 +149,9 @@ func (p *project) setDefaults(parsedArgs *cliSpec) error {
 			return err
 		}
 
+		p.git.git = gw
+		p.loader = stack.NewLoaderWithGit(p.root, gw)
+
 		logger.Trace().Msg("Check git default remote.")
 
 		if err := p.checkDefaultRemote(gw); err != nil {
@@ -174,6 +180,8 @@ func (p *project) setDefaults(parsedArgs *cliSpec) error {
 		} else {
 			p.baseRef = p.defaultBaseRef(gw)
 		}
+	} else {
+		p.loader = stack.NewLoader(p.root)
 	}
 
 	return nil

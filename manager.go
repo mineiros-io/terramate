@@ -36,7 +36,8 @@ type (
 		root       string // root is the project's root directory
 		gitBaseRef string // gitBaseRef is the git ref where we compare changes.
 
-		stackLoader stack.Loader
+		stackLoader *stack.Loader
+		git         *git.Git
 	}
 
 	// StacksReport is the report of project's stacks and the result of its
@@ -66,11 +67,12 @@ const errListChanged errors.Kind = "listing changed stacks error"
 
 // NewManager creates a new stack manager. The rootdir is the project's
 // directory and gitBaseRef is the git reference to compare against for changes.
-func NewManager(rootdir string, gitBaseRef string) *Manager {
+func NewManager(loader *stack.Loader, rootdir string, gitBaseRef string) *Manager {
 	return &Manager{
 		root:        rootdir,
 		gitBaseRef:  gitBaseRef,
-		stackLoader: stack.NewLoader(rootdir),
+		stackLoader: loader,
+		git:         loader.Git(),
 	}
 }
 
@@ -83,7 +85,7 @@ func (m *Manager) List() (*StacksReport, error) {
 
 	logger.Debug().Msg("List stacks.")
 
-	entries, err := ListStacks(m.root)
+	entries, err := ListStacks(m.stackLoader, m.root)
 	if err != nil {
 		return nil, err
 	}
@@ -94,19 +96,12 @@ func (m *Manager) List() (*StacksReport, error) {
 
 	logger.Trace().Str("repo", m.root).Msg("Create git wrapper for repo.")
 
-	g, err := git.WithConfig(git.Config{
-		WorkingDir: m.root,
-	})
-	if err != nil {
-		return nil, errors.E(errList, err)
-	}
-
 	logger.Trace().Msg("Check if path is git repo.")
-	if !g.IsRepository() {
+	if !m.git.IsRepository() {
 		return report, nil
 	}
 
-	report.Checks, err = checkRepoIsClean(g)
+	report.Checks, err = checkRepoIsClean(m.git)
 	if err != nil {
 		return nil, errors.E(errList, err)
 	}
@@ -177,7 +172,7 @@ func (m *Manager) ListChanged() (*StacksReport, error) {
 			logger.Debug().
 				Str("path", dirname).
 				Msg("Lookup parent stack.")
-			s, found, err = stack.LookupParent(m.root, dirname)
+			s, found, err = m.stackLoader.LookupParentStack(dirname)
 			if err != nil {
 				return nil, errors.E(errListChanged, err)
 			}
@@ -195,7 +190,7 @@ func (m *Manager) ListChanged() (*StacksReport, error) {
 
 	logger.Debug().Msg("Get list of all stacks.")
 
-	allstacks, err := ListStacks(m.root)
+	allstacks, err := ListStacks(m.stackLoader, m.root)
 	if err != nil {
 		return nil, errors.E(errListChanged, "searching for stacks", err)
 	}

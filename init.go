@@ -30,7 +30,8 @@ const errInit errors.Kind = "stack initialization failed"
 
 // Init initialize a stack. If the stack is already initialized it returns
 // with no error and no changes will be performed on the stack.
-func Init(root, dir string) error {
+// The loader is needed to check if the stack is a leaf.
+func Init(loader *stack.Loader, root, dir string) error {
 	logger := log.With().
 		Str("action", "Init()").
 		Str("stack", dir).
@@ -56,7 +57,7 @@ func Init(root, dir string) error {
 
 	logger.Trace().Msg("Check if stack is leaf.")
 
-	ok, err := stack.IsLeaf(root, dir)
+	ok, err := loader.IsLeafStack(dir)
 	if err != nil {
 		return errors.E(errInit, err)
 	}
@@ -66,7 +67,7 @@ func Init(root, dir string) error {
 	}
 
 	logger.Trace().Msg("Lookup parent stack.")
-	parentStack, found, err := stack.LookupParent(root, dir)
+	parentStack, found, err := loader.LookupParentStack(dir)
 	if err != nil {
 		return errors.E(errInit, err)
 	}

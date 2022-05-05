@@ -21,7 +21,6 @@ import (
 	"github.com/mineiros-io/terramate/errors"
 	"github.com/mineiros-io/terramate/generate"
 	"github.com/mineiros-io/terramate/hcl"
-	tmstack "github.com/mineiros-io/terramate/stack"
 	"github.com/mineiros-io/terramate/test/sandbox"
 )
 
@@ -217,7 +216,8 @@ func TestCheckFailsWithInvalidConfig(t *testing.T) {
 		stackEntry := s.CreateStack("stack")
 		stackEntry.CreateConfig(invalidConfig)
 
-		_, err := tmstack.Load(s.RootDir(), stackEntry.Path())
+		loader := s.StackLoader()
+		_, err := loader.Load(stackEntry.Path())
 		assert.IsError(t, err, errors.E(hcl.ErrTerramateSchema))
 	}
 }

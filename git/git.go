@@ -83,7 +83,8 @@ type (
 
 	// CmdError is the error for failed commands.
 	CmdError struct {
-		cmd    string // Command-line executed
+		cmd    string // command-line executed
+		code   int    // exit code
 		stdout []byte // stdout of the failed command
 		stderr []byte // stderr of the failed command
 	}
@@ -794,6 +795,22 @@ func (git *Git) CurrentBranch() (string, error) {
 	return git.exec("symbolic-ref", "--short", "HEAD")
 }
 
+// IsIgnored checks if the file must be ignored.
+func (git *Git) IsIgnored(path string) (bool, error) {
+	_, err := git.exec("check-ignore", path)
+	if err != nil {
+		var cmdErr *CmdError
+		if errors.As(err, &cmdErr) {
+			if cmdErr.ExitCode() > 1 {
+				return false, err
+			}
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (git *Git) exec(command string, args ...string) (string, error) {
 	logger := log.With().
 		Str("action", "exec()").
@@ -830,17 +847,17 @@ func (git *Git) exec(command string, args ...string) (string, error) {
 		cmd.Env = append(cmd.Env, "GIT_ATTR_NOSYSTEM=1")
 	}
 
-	logger.Debug().
-		Msg("Run command.")
+	logger.Debug().Msg("Run command.")
+
 	stdout, err := cmd.Output()
 	if err != nil {
-		stderr := []byte{}
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
-			stderr = exitError.Stderr
+		var execError *exec.ExitError
+		if errors.As(err, &execError) {
+			return "", NewCmdError(
+				cmd.String(), execError.ExitCode(), stdout, execError.Stderr,
+			)
 		}
-
-		return "", NewCmdError(cmd.String(), stdout, stderr)
+		return "", err
 	}
 
 	out := strings.TrimSpace(string(stdout))
@@ -853,9 +870,10 @@ func (e Error) Error() string {
 }
 
 // NewCmdError returns a new command line error.
-func NewCmdError(cmd string, stdout, stderr []byte) error {
+func NewCmdError(cmd string, code int, stdout []byte, stderr []byte) error {
 	return &CmdError{
 		cmd:    cmd,
+		code:   code,
 		stdout: stdout,
 		stderr: stderr,
 	}
@@ -889,6 +907,9 @@ func (e *CmdError) Stdout() []byte { return e.stdout }
 
 // Stderr of the failed command.
 func (e *CmdError) Stderr() []byte { return e.stderr }
+
+// ExitCode returns the exit code.
+func (e *CmdError) ExitCode() int { return e.code }
 
 func (r remoteSorter) Len() int {
 	return len(r)

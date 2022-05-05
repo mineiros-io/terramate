@@ -93,7 +93,7 @@ func TestGitLog(t *testing.T) {
 
 			// we only check if error Is of type CmdError then the state do not
 			// matter.
-			wantErr: git.NewCmdError("any command", nil, nil),
+			wantErr: git.NewCmdError("any command", 1, nil, nil),
 		},
 	} {
 		repodir := tc.repo(t)

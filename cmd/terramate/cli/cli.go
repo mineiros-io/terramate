@@ -360,7 +360,7 @@ func (c *cli) run() {
 
 		c.runOnStacks()
 	case "generate":
-		report := generate.Do(c.root(), c.wd())
+		report := generate.Do(c.loader(), c.root(), c.wd())
 		c.log(report.String())
 
 		if report.HasFailures() {
@@ -404,7 +404,7 @@ func (c *cli) initStack(dirs []string) {
 			Str("stack", fmt.Sprintf("%s%s", c.wd(), strings.Trim(d, "."))).
 			Msg("Init stack.")
 
-		err := terramate.Init(c.root(), d)
+		err := terramate.Init(c.loader(), c.root(), d)
 		if err != nil {
 			c.logerr("warn: failed to initialize stack: %v", err)
 			errmsgs = append(errmsgs, err.Error())
@@ -477,7 +477,7 @@ func (c *cli) printStacks() {
 	logger.Trace().
 		Str("workingDir", c.wd()).
 		Msg("Create a new stack manager.")
-	mgr := terramate.NewManager(c.root(), c.prj.baseRef)
+	mgr := terramate.NewManager(c.loader(), c.root(), c.prj.baseRef)
 
 	logger.Trace().
 		Str("workingDir", c.wd()).
@@ -538,7 +538,7 @@ func (c *cli) generateGraph() {
 			Msg("-label expects the values \"stack.name\" or \"stack.dir\"")
 	}
 
-	entries, err := terramate.ListStacks(c.root())
+	entries, err := terramate.ListStacks(c.loader(), c.root())
 	if err != nil {
 		logger.Fatal().
 			Err(err).
@@ -697,7 +697,7 @@ func (c *cli) printStacksGlobals() {
 	logger.Trace().
 		Msg("Create new terramate manager.")
 
-	mgr := terramate.NewManager(c.root(), c.prj.baseRef)
+	mgr := terramate.NewManager(c.loader(), c.root(), c.prj.baseRef)
 	report, err := c.listStacks(mgr, c.parsedArgs.Changed)
 	if err != nil {
 		logger.Fatal().
@@ -735,7 +735,7 @@ func (c *cli) printMetadata() {
 	logger.Trace().
 		Msg("Create new terramate manager.")
 
-	mgr := terramate.NewManager(c.root(), c.prj.baseRef)
+	mgr := terramate.NewManager(c.loader(), c.root(), c.prj.baseRef)
 	report, err := c.listStacks(mgr, c.parsedArgs.Changed)
 	if err != nil {
 		logger.Fatal().
@@ -901,8 +901,9 @@ func (c *cli) runOnStacks() {
 	}
 }
 
-func (c *cli) wd() string   { return c.prj.wd }
-func (c *cli) root() string { return c.prj.root }
+func (c *cli) wd() string            { return c.prj.wd }
+func (c *cli) root() string          { return c.prj.root }
+func (c *cli) loader() *stack.Loader { return c.prj.loader }
 
 func (c *cli) log(format string, args ...interface{}) {
 	fmt.Fprintln(c.stdout, fmt.Sprintf(format, args...))
@@ -924,7 +925,7 @@ func (c *cli) computeSelectedStacks(ensureCleanRepo bool) ([]stack.S, error) {
 
 	logger.Trace().Msg("Create new terramate manager.")
 
-	mgr := terramate.NewManager(c.root(), c.prj.baseRef)
+	mgr := terramate.NewManager(c.loader(), c.root(), c.prj.baseRef)
 
 	logger.Trace().Msg("Get list of stacks.")
 

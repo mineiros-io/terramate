@@ -25,7 +25,7 @@ import (
 
 // ListStacks walks the project's root directory looking for terraform stacks.
 // It returns a lexicographic sorted list of stack directories.
-func ListStacks(root string) ([]Entry, error) {
+func ListStacks(loader *stack.Loader, root string) ([]Entry, error) {
 	logger := log.With().
 		Str("action", "ListStacks()").
 		Str("path", root).
@@ -50,7 +50,7 @@ func ListStacks(root string) ([]Entry, error) {
 			}
 
 			logger.Trace().Str("stack", path).Msg("Try load stack.")
-			stack, found, err := stack.TryLoad(root, path)
+			stack, found, err := loader.TryLoad(path)
 			if err != nil {
 				return err
 			}

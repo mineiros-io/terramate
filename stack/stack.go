@@ -15,59 +15,48 @@
 package stack
 
 import (
-	"fmt"
 	"path/filepath"
 	"sort"
-	"strings"
 
-	"github.com/mineiros-io/terramate/errors"
 	"github.com/mineiros-io/terramate/hcl"
 	"github.com/mineiros-io/terramate/project"
-	"github.com/rs/zerolog/log"
 	"github.com/zclconf/go-cty/cty"
 )
 
-type (
-	// S represents a stack
-	S struct {
-		// hostpath is the file system absolute path of the stack.
-		hostpath string
+// S represents a stack
+type S struct {
+	// hostpath is the file system absolute path of the stack.
+	hostpath string
 
-		// path is the absolute path of the stack relative to project's root.
-		path string
+	// path is the absolute path of the stack relative to project's root.
+	path string
 
-		// name of the stack.
-		name string
+	// name of the stack.
+	name string
 
-		// desc is the description of the stack.
-		desc string
+	// desc is the description of the stack.
+	desc string
 
-		// after is a list of stack paths that must run before this stack.
-		after []string
+	// after is a list of stack paths that must run before this stack.
+	after []string
 
-		// before is a list of stack paths that must run after this stack.
-		before []string
+	// before is a list of stack paths that must run after this stack.
+	before []string
 
-		// wants is the list of stacks that must be selected whenever this stack
-		// is selected.
-		wants []string
+	// wants is the list of stacks that must be selected whenever this stack
+	// is selected.
+	wants []string
 
-		// changed tells if this is a changed stack.
-		changed bool
-	}
+	// changed tells if this is a changed stack.
+	changed bool
+}
 
-	// Metadata has all metadata loaded per stack
-	Metadata interface {
-		Name() string
-		Path() string
-		Desc() string
-	}
-)
-
-const (
-	// ErrHasSubstacks indicates that a stack has a sub-stack (not leaf)
-	ErrHasSubstacks errors.Kind = "stack has substacks"
-)
+// Metadata has all metadata loaded per stack
+type Metadata interface {
+	Name() string
+	Path() string
+	Desc() string
+}
 
 // New creates a new stack from configuration cfg.
 func New(root string, cfg hcl.Config) S {
@@ -129,61 +118,6 @@ func MetaToCtyMap(m Metadata) map[string]cty.Value {
 		"path":        cty.StringVal(m.Path()),
 		"description": cty.StringVal(m.Desc()),
 	}
-}
-
-// IsLeaf returns true if dir is a leaf stack.
-func IsLeaf(root, dir string) (bool, error) {
-	l := NewLoader(root)
-	return l.IsLeafStack(dir)
-}
-
-// LookupParent checks parent stack of given dir.
-// Returns false, nil if the given dir has no parent stack.
-func LookupParent(root, dir string) (S, bool, error) {
-	l := NewLoader(root)
-	return l.lookupParentStack(dir)
-}
-
-// Load a single stack from dir.
-func Load(root, dir string) (S, error) {
-	l := NewLoader(root)
-	return l.Load(dir)
-}
-
-// TryLoad tries to load a single stack from dir. It sets found as true in case
-// the stack was successfully loaded.
-func TryLoad(root, absdir string) (stack S, found bool, err error) {
-	logger := log.With().
-		Str("action", "TryLoad()").
-		Str("dir", absdir).
-		Logger()
-
-	if !strings.HasPrefix(absdir, root) {
-		return S{}, false, errors.E(fmt.Sprintf("directory %q is not inside project root %q",
-			absdir, root))
-	}
-
-	logger.Debug().Msg("Parsing configuration.")
-	cfg, err := hcl.ParseDir(absdir)
-	if err != nil {
-		return S{}, false, err
-	}
-
-	if cfg.Stack == nil {
-		return S{}, false, nil
-	}
-
-	ok, err := IsLeaf(root, absdir)
-	if err != nil {
-		return S{}, false, err
-	}
-
-	if !ok {
-		return S{}, false, errors.E(ErrHasSubstacks, fmt.Sprintf("dir %q", absdir))
-	}
-
-	logger.Debug().Msg("Create a new stack")
-	return New(root, cfg), true, nil
 }
 
 // Sort sorts the given stacks.

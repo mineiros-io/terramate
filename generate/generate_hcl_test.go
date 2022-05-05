@@ -418,7 +418,7 @@ func TestHCLGeneration(t *testing.T) {
 			}
 
 			workingDir := filepath.Join(s.RootDir(), tcase.workingDir)
-			report := generate.Do(s.RootDir(), workingDir)
+			report := generate.Do(s.StackLoader(), s.RootDir(), workingDir)
 			assertEqualReports(t, report, tcase.wantReport)
 
 			assertGeneratedHCLs(t)
@@ -426,7 +426,7 @@ func TestHCLGeneration(t *testing.T) {
 			// piggyback on the tests to validate that regeneration doesnt
 			// delete files or fail and has identical results.
 			t.Run("regenerate", func(t *testing.T) {
-				report := generate.Do(s.RootDir(), workingDir)
+				report := generate.Do(s.StackLoader(), s.RootDir(), workingDir)
 				// since we just generated everything, report should only contain
 				// the same failures as previous code generation.
 				assertEqualReports(t, report, generate.Report{
@@ -493,7 +493,7 @@ func TestWontOverwriteManuallyDefinedTerraform(t *testing.T) {
 		fmt.Sprintf("f:stack/%s:%s", genFilename, manualTfCode),
 	})
 
-	report := generate.Do(s.RootDir(), s.RootDir())
+	report := generate.Do(s.StackLoader(), s.RootDir(), s.RootDir())
 	assert.EqualInts(t, 0, len(report.Successes), "want no success")
 	assert.EqualInts(t, 1, len(report.Failures), "want single failure")
 	assertReportHasError(t, report, errors.E(generate.ErrManualCodeExists))

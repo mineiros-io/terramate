@@ -1069,7 +1069,7 @@ func TestLoadGlobals(t *testing.T) {
 
 			wantGlobals := tcase.want
 
-			stackEntries, err := terramate.ListStacks(s.RootDir())
+			stackEntries, err := terramate.ListStacks(s.StackLoader(), s.RootDir())
 			if err != nil {
 				errtest.AssertKind(t, err, tcase.wantErr)
 			}
@@ -1264,7 +1264,7 @@ func TestLoadGlobalsErrors(t *testing.T) {
 				test.AppendFile(t, path, config.DefaultFilename, c.body)
 			}
 
-			stackEntries, err := terramate.ListStacks(s.RootDir())
+			stackEntries, err := terramate.ListStacks(s.StackLoader(), s.RootDir())
 			// TODO(i4k): this better not be tested here.
 			if errors.IsKind(tcase.want, hcl.ErrHCLSyntax) {
 				errtest.AssertKind(t, err, tcase.want)

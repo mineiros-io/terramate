@@ -71,8 +71,8 @@ const (
 // on code generation, any failure found is added to the report but does not abort
 // the overall code generation process, so partial results can be obtained and the
 // report needs to be inspected to check.
-func Do(root string, workingDir string) Report {
-	return forEachStack(root, workingDir, func(
+func Do(loader *stack.Loader, root string, workingDir string) Report {
+	return forEachStack(loader, root, workingDir, func(
 		stack stack.S,
 		globals stack.Globals,
 	) stackReport {
@@ -440,7 +440,11 @@ func loadGeneratedCode(path string) (string, bool, error) {
 
 type forEachStackFunc func(stack.S, stack.Globals) stackReport
 
-func forEachStack(root, workingDir string, fn forEachStackFunc) Report {
+func forEachStack(
+	loader *stack.Loader,
+	root, workingDir string,
+	fn forEachStackFunc,
+) Report {
 	logger := log.With().
 		Str("action", "generate.forEachStack()").
 		Str("root", root).
@@ -451,7 +455,7 @@ func forEachStack(root, workingDir string, fn forEachStackFunc) Report {
 
 	logger.Trace().Msg("List stacks.")
 
-	stackEntries, err := terramate.ListStacks(root)
+	stackEntries, err := terramate.ListStacks(loader, root)
 	if err != nil {
 		report.BootstrapErr = err
 		return report

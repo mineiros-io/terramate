@@ -21,6 +21,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mineiros-io/terramate/errors"
+	"github.com/mineiros-io/terramate/git"
+	"github.com/mineiros-io/terramate/hcl"
 	"github.com/mineiros-io/terramate/project"
 	"github.com/rs/zerolog/log"
 )
@@ -29,20 +32,33 @@ import (
 type Loader struct {
 	root   string
 	stacks map[string]S
+	git    *git.Git
 }
 
+const (
+	// ErrHasSubstacks indicates that a stack has a sub-stack (not leaf)
+	ErrHasSubstacks errors.Kind = "stack has substacks"
+)
+
 // NewLoader creates a new stack loader for project's root directory.
-func NewLoader(root string) Loader {
-	return Loader{
+func NewLoader(root string) *Loader {
+	return NewLoaderWithGit(root, nil)
+}
+
+// NewLoader creates a new stack loader for project's root directory with git
+// support.
+func NewLoaderWithGit(root string, git *git.Git) *Loader {
+	return &Loader{
 		root:   root,
 		stacks: make(map[string]S),
+		git:    git,
 	}
 }
 
 // Load loads a stack from dir directory.
 // The provided directory must be an absolute path to the stack dir.
 // If the stack was previously loaded, it returns the cached one.
-func (l Loader) Load(dir string) (S, error) {
+func (l *Loader) Load(dir string) (S, error) {
 	stack, found, err := l.TryLoad(dir)
 	if err != nil {
 		return S{}, err
@@ -58,7 +74,7 @@ func (l Loader) Load(dir string) (S, error) {
 // TryLoad tries to load a stack from directory. It returns found as true
 // only in the case that path contains a stack and it was correctly parsed.
 // It caches the stack for later use.
-func (l Loader) TryLoad(dir string) (stack S, found bool, err error) {
+func (l *Loader) TryLoad(dir string) (stack S, found bool, err error) {
 	logger := log.With().
 		Str("action", "Loader.TryLoad()").
 		Str("dir", dir).
@@ -71,7 +87,7 @@ func (l Loader) TryLoad(dir string) (stack S, found bool, err error) {
 		return s, true, nil
 	}
 
-	stack, found, err = TryLoad(l.root, dir)
+	stack, found, err = l.tryLoad(dir)
 	if !found {
 		return S{}, found, err
 	}
@@ -82,7 +98,7 @@ func (l Loader) TryLoad(dir string) (stack S, found bool, err error) {
 
 // TryLoadChanged is like TryLoad but sets the stack as changed if loaded
 // successfully.
-func (l Loader) TryLoadChanged(root, dir string) (stack S, found bool, err error) {
+func (l *Loader) TryLoadChanged(root, dir string) (stack S, found bool, err error) {
 	logger := log.With().
 		Str("action", "TryLoadChanged()").
 		Str("stack", dir).
@@ -100,14 +116,14 @@ func (l Loader) TryLoadChanged(root, dir string) (stack S, found bool, err error
 
 // Set stacks in the loader's cache. The dir directory must be relative to
 // project's root.
-func (l Loader) Set(dir string, s S) {
+func (l *Loader) Set(dir string, s S) {
 	l.stacks[dir] = s
 }
 
 // LoadAll loads all the stacks in the dirs paths. For each dir in dirs:
 // - If it is relative, it will be considered relative to wd, path = wd + dir
 // - If it is absolute, it will be considered absolute in relation to the given root, path = root + dir
-func (l Loader) LoadAll(root string, wd string, dirs ...string) ([]S, error) {
+func (l *Loader) LoadAll(root string, wd string, dirs ...string) ([]S, error) {
 	logger := log.With().
 		Str("action", "LoadAll()").
 		Logger()
@@ -139,7 +155,7 @@ func (l Loader) LoadAll(root string, wd string, dirs ...string) ([]S, error) {
 }
 
 // IsLeafStack returns true if dir is a leaf stack.
-func (l Loader) IsLeafStack(dir string) (bool, error) {
+func (l *Loader) IsLeafStack(dir string) (bool, error) {
 	isValid := true
 	log.Trace().
 		Str("action", "IsLeafStack()").
@@ -156,6 +172,19 @@ func (l Loader) IsLeafStack(dir string) (bool, error) {
 			}
 			if path == dir {
 				return nil
+			}
+			if l.git != nil {
+				relpath := project.PrjAbsPath(l.root, path)
+				isIgnored, err := l.git.IsIgnored(relpath[1:]) // skip the / in the beginning
+				if err != nil {
+					return err
+				}
+
+				fmt.Printf("path %s (%t)\n", relpath, isIgnored)
+
+				if isIgnored {
+					return filepath.SkipDir
+				}
 			}
 			if info.IsDir() {
 				if strings.HasSuffix(path, "/.git") {
@@ -185,7 +214,9 @@ func (l Loader) IsLeafStack(dir string) (bool, error) {
 	return isValid, nil
 }
 
-func (l Loader) lookupParentStack(dir string) (stack S, found bool, err error) {
+// LookupParentStack returns parent stack of given dir.
+// Returns false, nil if the given dir has no parent stack.
+func (l Loader) LookupParentStack(dir string) (stack S, found bool, err error) {
 	if l.root == dir {
 		return S{}, false, nil
 	}
@@ -224,3 +255,52 @@ func (l Loader) lookupParentStack(dir string) (stack S, found bool, err error) {
 
 	return S{}, false, nil
 }
+
+// TryLoad tries to load a single stack from dir. It sets found as true in case
+// the stack was successfully loaded.
+func (l *Loader) tryLoad(absdir string) (stack S, found bool, err error) {
+	logger := log.With().
+		Str("action", "tryLoad()").
+		Str("dir", absdir).
+		Logger()
+
+	if !strings.HasPrefix(absdir, l.root) {
+		return S{}, false, errors.E(
+			fmt.Sprintf("directory %q is not inside project root %q", absdir, l.root))
+	}
+
+	if l.git != nil {
+		isIgnored, err := l.git.IsIgnored(absdir)
+		if err != nil {
+			return S{}, false, err
+		}
+
+		if isIgnored {
+			return S{}, false, nil
+		}
+	}
+
+	logger.Debug().Msg("Parsing configuration.")
+	cfg, err := hcl.ParseDir(absdir)
+	if err != nil {
+		return S{}, false, err
+	}
+
+	if cfg.Stack == nil {
+		return S{}, false, nil
+	}
+
+	ok, err := l.IsLeafStack(absdir)
+	if err != nil {
+		return S{}, false, err
+	}
+
+	if !ok {
+		return S{}, false, errors.E(ErrHasSubstacks, fmt.Sprintf("dir %q", absdir))
+	}
+
+	logger.Debug().Msg("Create a new stack")
+	return New(l.root, cfg), true, nil
+}
+
+func (l *Loader) Git() *git.Git { return l.git }

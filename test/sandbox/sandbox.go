@@ -43,9 +43,10 @@ import (
 // S is a full sandbox with its own base dir that is an initialized git repo for
 // test purposes.
 type S struct {
-	t       *testing.T
-	git     *Git
-	rootdir string
+	t           *testing.T
+	git         *Git
+	rootdir     string
+	stackLoader *stack.Loader
 }
 
 // DirEntry represents a directory and can be used to create files inside the
@@ -60,6 +61,7 @@ type DirEntry struct {
 // StackEntry represents a directory that's also a stack.
 // It extends a DirEntry with stack specific functionality.
 type StackEntry struct {
+	loader *stack.Loader
 	DirEntry
 }
 
@@ -83,6 +85,7 @@ func New(t *testing.T) S {
 
 	s.git = NewGit(t, s.RootDir())
 	s.git.Init()
+	s.stackLoader = stack.NewLoaderWithGit(s.rootdir, s.git.Unwrap())
 	return s
 }
 
@@ -224,7 +227,7 @@ func (s S) Generate() generate.Report {
 	t := s.t
 	t.Helper()
 
-	report := generate.Do(s.RootDir(), s.RootDir())
+	report := generate.Do(s.StackLoader(), s.RootDir(), s.RootDir())
 	for _, failure := range report.Failures {
 		t.Errorf("Generate unexpected failure: %v", failure)
 	}
@@ -235,7 +238,7 @@ func (s S) Generate() generate.Report {
 func (s S) LoadStacks() []stack.S {
 	s.t.Helper()
 
-	entries, err := terramate.ListStacks(s.rootdir)
+	entries, err := terramate.ListStacks(s.StackLoader(), s.rootdir)
 	assert.NoError(s.t, err)
 
 	var stacks []stack.S
@@ -313,15 +316,15 @@ func (s S) CreateStack(relpath string) StackEntry {
 		relpath = relpath[1:]
 	}
 
-	stack := newStackEntry(t, s.RootDir(), relpath)
-	assert.NoError(t, terramate.Init(s.RootDir(), stack.Path()))
+	stack := newStackEntry(t, s, relpath)
+	assert.NoError(t, terramate.Init(s.StackLoader(), s.RootDir(), stack.Path()))
 	return stack
 }
 
 // StackEntry gets the stack entry of the stack identified by relpath.
 // The stack must exist (previously created).
 func (s S) StackEntry(relpath string) StackEntry {
-	return newStackEntry(s.t, s.RootDir(), relpath)
+	return newStackEntry(s.t, s, relpath)
 }
 
 // DirEntry gets the dir entry for relpath.
@@ -349,6 +352,10 @@ func (s S) DirEntry(relpath string) DirEntry {
 		abspath: abspath,
 		relpath: relpath,
 	}
+}
+
+func (s S) StackLoader() *stack.Loader {
+	return s.stackLoader
 }
 
 // CreateFile will create a file inside this dir entry with the given name and
@@ -492,7 +499,7 @@ func (se StackEntry) RemoveGeneratedHCL(name string) {
 func (se StackEntry) Load() stack.S {
 	se.t.Helper()
 
-	loadedStack, err := stack.Load(se.rootpath, se.Path())
+	loadedStack, err := se.loader.Load(se.Path())
 	assert.NoError(se.t, err)
 	return loadedStack
 }
@@ -522,8 +529,11 @@ func newDirEntry(t *testing.T, rootdir string, relpath string) DirEntry {
 	}
 }
 
-func newStackEntry(t *testing.T, rootdir string, relpath string) StackEntry {
-	return StackEntry{DirEntry: newDirEntry(t, rootdir, relpath)}
+func newStackEntry(t *testing.T, s S, relpath string) StackEntry {
+	return StackEntry{
+		DirEntry: newDirEntry(t, s.RootDir(), relpath),
+		loader:   s.StackLoader(),
+	}
 }
 
 func parseListSpec(t *testing.T, name, value string) []string {

@@ -110,7 +110,7 @@ func BuildDAG(
 	d *dag.DAG,
 	root string,
 	s stack.S,
-	loader stack.Loader,
+	loader *stack.Loader,
 	visited visited,
 ) error {
 	logger := log.With().
