@@ -1,4 +1,6 @@
-# [<img src="https://github.com/mineiros-io/brand/blob/38f6e5c20a176c62dc673f707a3987c9ec3691cd/terramate-vertical-logo-black-font.svg" height="120"/>](https://mineiros.io/?ref=terramate)[<img align="right" src="https://raw.githubusercontent.com/mineiros-io/brand/3bffd30e8bdbbde32c143e2650b2faa55f1df3ea/mineiros-primary-logo.svg" height="23" alt="Mineiros"/>](https://mineiros.io/?ref=terramate)
+![](https://raw.githubusercontent.com/mineiros-io/brand/katcipis-add-png-logos/terramate-vertical-logo-black-font-262-120.png#gh-light-mode-only)
+![](https://raw.githubusercontent.com/mineiros-io/brand/katcipis-add-png-logos/terramate-vertical-logo-white-font-262-120.png#gh-dark-mode-only)
+[<img align="right" src="https://raw.githubusercontent.com/mineiros-io/brand/3bffd30e8bdbbde32c143e2650b2faa55f1df3ea/mineiros-primary-logo.svg" height="23" alt="Mineiros"/>](https://mineiros.io/?ref=terramate)
 
 [![GoDoc](https://pkg.go.dev/badge/github.com/mineiros-io/terramate)](https://pkg.go.dev/github.com/mineiros-io/terramate)
 ![CI Status](https://github.com/mineiros-io/terramate/actions/workflows/ci.yml/badge.svg)
