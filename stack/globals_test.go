@@ -1068,6 +1068,32 @@ func TestLoadGlobals(t *testing.T) {
 			wantErr: errors.E(stack.ErrGlobalEval),
 		},
 		{
+			name:   "unknown global reference in tm_try",
+			layout: []string{"s:stack"},
+			configs: []hclconfig{
+				{
+					path: "/stack",
+					add: globals(
+						expr("a", "tm_try(test(), 1)"),
+					),
+				},
+			},
+			wantErr: errors.E(stack.ErrGlobalEval),
+		},
+		{
+			name:   "unknown global reference in list",
+			layout: []string{"s:stack"},
+			configs: []hclconfig{
+				{
+					path: "/stack",
+					add: globals(
+						expr("a", "tm_try(1, [0, test(), 1], 1)"),
+					),
+				},
+			},
+			wantErr: errors.E(stack.ErrGlobalEval),
+		},
+		{
 			name:   "global cyclic references across hierarchy",
 			layout: []string{"s:stacks/stack"},
 			configs: []hclconfig{
