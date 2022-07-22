@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mineiros-io/terramate/errors"
 	"github.com/mineiros-io/terramate/project"
 	"github.com/rs/zerolog/log"
 )
@@ -109,6 +110,7 @@ func (l Loader) Set(dir string, s *S) {
 // LoadAll loads all the stacks in the dirs paths. For each dir in dirs:
 // - If it is relative, it will be considered relative to wd, path = wd + dir
 // - If it is absolute, it will be considered absolute in relation to the given root, path = root + dir
+// - If it's not a stack, it will recursively try to load the stacks from subfolders.
 func (l Loader) LoadAll(root string, wd string, dirs ...string) (List, error) {
 	logger := log.With().
 		Str("action", "LoadAll()").
@@ -130,12 +132,25 @@ func (l Loader) LoadAll(root string, wd string, dirs ...string) (List, error) {
 		logger.Debug().
 			Str("stack", d).
 			Msg("Load stack.")
-		stack, err := l.Load(d)
+		stack, found, err := l.TryLoad(d)
 		if err != nil {
 			return nil, err
 		}
 
-		stacks = append(stacks, stack)
+		if found {
+			stacks = append(stacks, stack)
+		}
+
+		subdirs, err := listDirs(d)
+		if err != nil {
+			return nil, err
+		}
+
+		substacks, err := l.LoadAll(root, d, subdirs...)
+		if err != nil {
+			return nil, errors.E(err, "loading sub stacks of %q", d)
+		}
+		stacks = append(stacks, substacks...)
 	}
 	return stacks, nil
 }
@@ -178,4 +193,18 @@ func (l Loader) lookupParentStack(dir string) (stack *S, found bool, err error) 
 	}
 
 	return nil, false, nil
+}
+
+func listDirs(dir string) ([]string, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var dirs []string
+	for _, f := range files {
+		if f.IsDir() {
+			dirs = append(dirs, f.Name())
+		}
+	}
+	return dirs, nil
 }

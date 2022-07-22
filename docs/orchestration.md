@@ -78,31 +78,33 @@ just for cosmetic purposes can potentially change the execution order and break 
 Order of execution can be explicitly declared inside the **stack** block using
 the fields **before** and **after**. 
 
-Each field is a set of strings (**set(string)**), where each string is a 
-reference to another stack.
+Each field is a set of string (**set(string)**), where each string is a path that
+references another directory, which can be a stack or contain stacks inside.
 
 The explicit order can be used in conjunction with the implicit filesystem order
 but have in mind that a parent stack in the filesystem can never execute after a
 child one, and trying to make this using explicit **before** and **after** clauses
 will lead to a cycle error.
 
-References to stacks can be relative to the stack being configured in the form:
+References to directories can be relative to the stack being configured in the form:
 
 ```
-../../stack
+../../dir
 ```
 
 Or they can be relative to the project root, starting with "/":
 
 ```
-/path/relative/to/project/root/stack
+/path/relative/to/project/root/dir
 ```
 
 **before** ensures that the configured stack is executed before the
-listed stacks, as the stack you are saying "I execute before these stacks".
+stacks contained in the directory paths. As the stack you are saying: 
+"I execute before all stacks inside these directories".
 
-**after** ensures the opposite, that the listed stacks are executed before
-the configured stack, you are saying "I execute after these stacks".
+**after** ensures the opposite, that the stacks contained in the provided 
+directories are executed before the current stack. As the stack, you are saying:
+"I execute after all stacks inside these directories".
 
 For example, let's assume we have a project organized like this:
 

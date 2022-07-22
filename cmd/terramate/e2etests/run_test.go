@@ -57,6 +57,24 @@ func TestCLIRunOrder(t *testing.T) {
 			},
 		},
 		{
+			name: "after non-existent path",
+			layout: []string{
+				fmt.Sprintf("s:stack:after=[%q]", test.NonExistingDir(t)),
+			},
+			want: runExpected{
+				Stdout: listStacks(`stack`),
+			},
+		},
+		{
+			name: "after regular file",
+			layout: []string{
+				fmt.Sprintf("s:stack:after=[%q]", test.WriteFile(t, "", "test.txt", `bleh`)),
+			},
+			want: runExpected{
+				Stdout: listStacks(`stack`),
+			},
+		},
+		{
 			name: "independent stacks, consistent ordering (lexicographic)",
 			layout: []string{
 				"s:batatinha",
@@ -471,13 +489,14 @@ func TestCLIRunOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "child stack can have explicit after clause to parent",
+			name: "child stack CANNOT have explicit after clause to parent",
 			layout: []string{
 				`s:stacks`,
 				`s:stacks/child:after=["/stacks"]`,
 			},
 			want: runExpected{
-				Stdout: listStacks("stacks", "child"),
+				Status:      defaultErrExitStatus,
+				StderrRegex: string(dag.ErrCycleDetected),
 			},
 		},
 		{
@@ -500,6 +519,93 @@ func TestCLIRunOrder(t *testing.T) {
 			want: runExpected{
 				Status:      defaultErrExitStatus,
 				StderrRegex: string(dag.ErrCycleDetected),
+			},
+		},
+		{
+			name: "after directory containing stacks",
+			layout: []string{
+				`d:dir`,
+				`s:dir/s1`,
+				`s:dir/s2`,
+				`s:dir/s3`,
+				`s:stack:after=["/dir"]`,
+			},
+			want: runExpected{
+				Stdout: listStacks("s1", "s2", "s3", "stack"),
+			},
+		},
+		{
+			name: "after stack containing sub-stacks",
+			layout: []string{
+				`s:parent`,
+				`s:parent/s1`,
+				`s:parent/s2`,
+				`s:parent/s3`,
+				`s:stack:after=["/parent"]`,
+			},
+			want: runExpected{
+				Stdout: listStacks("parent", "s1", "s2", "s3", "stack"),
+			},
+		},
+		{
+			name: "after sub-stack of parent",
+			layout: []string{
+				`s:parent`,
+				`s:parent/s1`,
+				`s:parent/s2`,
+				`s:parent/s3`,
+				`s:stack:after=["/parent/s2"]`,
+			},
+			want: runExpected{
+				Stdout: listStacks("parent", "s1", "s2", "s3", "stack"),
+			},
+		},
+		{
+			name: "before directory containing stacks",
+			layout: []string{
+				`d:dir`,
+				`s:dir/s1`,
+				`s:dir/s2`,
+				`s:dir/s3`,
+				`s:stack:before=["/dir"]`,
+			},
+			want: runExpected{
+				Stdout: listStacks("stack", "s1", "s2", "s3"),
+			},
+		},
+		{
+			name: "after directory containing stacks in deep directories",
+			layout: []string{
+				`d:dir`,
+				`s:dir/A/B/C/D/Z-stack`,
+				`s:A-stack:after=["/dir"]`,
+			},
+			want: runExpected{
+				Stdout: listStacks("Z-stack", "A-stack"),
+			},
+		},
+		{
+			name: "before directory containing no stacks does nothing",
+			layout: []string{
+				`d:dir`,
+				`d:dir/dir2`,
+				`s:stack:before=["/dir"]`,
+				`s:stack2`,
+			},
+			want: runExpected{
+				Stdout: listStacks("stack", "stack2"),
+			},
+		},
+		{
+			name: "after directory containing no stacks does nothing",
+			layout: []string{
+				`d:dir`,
+				`d:dir/dir2`,
+				`s:stack:after=["/dir"]`,
+				`s:stack2`,
+			},
+			want: runExpected{
+				Stdout: listStacks("stack", "stack2"),
 			},
 		},
 	} {
